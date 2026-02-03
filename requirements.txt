@@ -3,3 +3,4 @@ wheel
 yfinance
 pandas_ta
 google-generativeai
+pytz
