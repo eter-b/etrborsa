@@ -4,3 +4,5 @@ yfinance
 pandas_ta
 google-generativeai
 pytz
+requests
+fake-useragent
