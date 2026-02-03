@@ -1,9 +1,14 @@
-name: Borsa Takipcisi
+name: Borsa Takipcisi 7-24
 
 on:
   schedule:
-    - cron: '0 * * * *'  # Her saat başı çalışır (Örn: 13:00, 14:00...)
-  workflow_dispatch:      # Elle tetiklemek için
+    - cron: '0 * * * *'  # Her saat başı
+  workflow_dispatch:      # Manuel tetikleme
+    inputs:
+      hisse_kodu:
+        description: 'Özel Analiz (Boş bırakırsan genel rapor)'
+        required: false
+        default: ''
 
 jobs:
   build:
@@ -16,15 +21,17 @@ jobs:
       - name: Python Kur
         uses: actions/setup-python@v4
         with:
-          python-version: '3.12'  # <-- BURAYI 3.12 YAPTIK
+          python-version: '3.12'
 
       - name: Kütüphaneleri Yükle
         run: |
           pip install -r requirements.txt
 
       - name: Botu Çalıştır
+        # İŞTE EKSİK OLAN KISIM BURASIYDI 👇
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          OZEL_ISTEK: ${{ github.event.inputs.hisse_kodu }}
         run: python main.py
