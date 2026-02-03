@@ -4,11 +4,6 @@ on:
   schedule:
     - cron: '0 * * * *'  # Her saat başı
   workflow_dispatch:      # Manuel tetikleme
-    inputs:
-      hisse_kodu:
-        description: 'Özel Analiz (Boş bırakırsan genel rapor)'
-        required: false
-        default: ''
 
 jobs:
   build:
@@ -28,7 +23,6 @@ jobs:
           pip install -r requirements.txt
 
       - name: Botu Çalıştır
-        # İŞTE EKSİK OLAN KISIM BURASIYDI 👇
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
