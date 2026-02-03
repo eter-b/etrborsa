@@ -7,7 +7,7 @@ from datetime import datetime
 
 # --- GITHUB'DAN GELECEK ŞİFRELER ---
 # GitHub Actions bu bilgileri "Secrets" kısmından alacak
-GOOGLE_API_KEY = os.environ["AIzaSyCPsDQrDvbkjHD0-v97n9d1Nqkcd5qvdCY"]
+GOOGLE_API_KEY = os.environ["AIzaSyCsjYsgHINirakHPpwE17OpFFlG7xfjxdU"]
 TELEGRAM_BOT_TOKEN = os.environ["8587911896:AAErzo-BWPdKzi4a1liCNUmLLg2_qBu9Afg"]
 TELEGRAM_CHAT_ID = os.environ["1952593958"]
 
