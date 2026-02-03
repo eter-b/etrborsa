@@ -13,20 +13,20 @@ from fake_useragent import UserAgent
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-# KUMANDA GİRİŞİ
 OZEL_ISTEK = os.environ.get("OZEL_ISTEK", "")
 
-# Telegram TOPIC ID (Eğer bir alt başlığa atacaksan buraya ID yaz, yoksa None kalsın)
+# BURAYA DİKKAT: Eğer bir grubun alt başlığına atacaksan ID'yi buraya yaz (Sayı olarak).
+# Yoksa None olarak kalsın. Örn: TELEGRAM_TOPIC_ID = 2
 TELEGRAM_TOPIC_ID = None 
 
 if not GOOGLE_API_KEY:
-    print("❌ API Key Eksik!")
+    print("❌ API Key Eksik! Settings > Secrets kontrol et.")
     exit(1)
 
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel("gemini-2.5-flash")
 
-# DOĞRU SEMBOLLER LİSTESİ
+# LİSTE
 SABIT_LISTE = {
     "🛡️ DEFANSİF": ["GC=F", "SI=F", "KCHOL.IS", "SAHOL.IS"], 
     "📈 BÜYÜME": ["THYAO.IS", "ASELS.IS", "TUPRS.IS", "GMSTR.IS"], 
@@ -44,7 +44,7 @@ def telegrama_yaz(mesaj):
         "text": mesaj, 
         "parse_mode": "Markdown"
     }
-    # Eğer Topic (Alt Başlık) varsa ona gönder
+    # Eğer Topic ID varsa ekle
     if TELEGRAM_TOPIC_ID:
         payload["message_thread_id"] = TELEGRAM_TOPIC_ID
 
@@ -53,41 +53,45 @@ def telegrama_yaz(mesaj):
     except Exception as e:
         print(f"Telegram hatası: {e}")
 
-def session_olustur():
-    """Yahoo Finance engelini aşmak için sahte tarayıcı oturumu"""
-    session = requests.Session()
+def veri_cek(sembol, deneme_sayisi=3):
+    """Israrcı Veri Çekme Fonksiyonu"""
     ua = UserAgent()
-    # Rastgele bir tarayıcı kimliği al
-    header = {
-        'User-Agent': ua.random,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Connection': 'keep-alive',
-    }
-    session.headers.update(header)
-    return session
+    
+    for i in range(deneme_sayisi):
+        try:
+            # Her denemede farklı bir tarayıcı gibi davran
+            session = requests.Session()
+            header = {
+                'User-Agent': ua.random,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Referer': 'https://www.google.com/'
+            }
+            session.headers.update(header)
+            
+            ticker = yf.Ticker(sembol, session=session)
+            # 1 yıllık veri iste
+            df = ticker.history(period="1y", interval="1d", timeout=15)
+            
+            if not df.empty:
+                return df # Veri geldiyse döndür
+            
+            print(f"⚠️ {sembol} boş geldi. Tekrar deneniyor ({i+1}/{deneme_sayisi})...")
+            time.sleep(random.uniform(2, 5)) # Biraz bekle (Dikkat çekmemek için)
+            
+        except Exception as e:
+            print(f"Hata ({sembol}): {e}")
+            time.sleep(2)
+    
+    return None # Tüm denemeler başarısızsa boş dön
 
-def veri_analiz_et(sembol):
+def teknik_analiz(sembol, df):
     try:
-        # 1. KAMUFLAJLI OTURUM AÇ
-        session = session_olustur()
-        
-        # 2. Yahoo'dan Veriyi İste (Timeout ekledik ki takılmasın)
-        ticker = yf.Ticker(sembol, session=session)
-        df = ticker.history(period="1y", interval="1d", timeout=10)
-        
-        # Engel yedik mi kontrol et
-        if df.empty:
-            print(f"⚠️ {sembol}: Veri boş geldi (Bloklanmış olabilir)")
-            return None
-
-        # --- TEKNİK ANALİZ ---
         son_fiyat = df['Close'].iloc[-1]
         
         # Haftalık Değişim
-        haftalik_degisim = 0
+        haftalik = 0
         if len(df) > 5:
-            haftalik_degisim = ((son_fiyat - df['Close'].iloc[-6]) / df['Close'].iloc[-6]) * 100
+            haftalik = ((son_fiyat - df['Close'].iloc[-6]) / df['Close'].iloc[-6]) * 100
             
         # İndikatörler
         df['RSI'] = ta.rsi(df['Close'], length=14)
@@ -109,26 +113,29 @@ def veri_analiz_et(sembol):
             "fiyat": round(son_fiyat, 2),
             "sinyal": sinyal,
             "rsi": round(rsi, 1),
-            "haftalik": round(haftalik_degisim, 1)
+            "haftalik": round(haftalik, 1)
         }
-    except Exception as e:
-        print(f"Hata ({sembol}): {e}")
+    except:
         return None
 
 def raporla():
-    # --- ÖZEL İSTEK ---
+    # --- ÖZEL İSTEK (TELEFON KUMANDASI) ---
     if OZEL_ISTEK and len(OZEL_ISTEK) > 1:
         s = OZEL_ISTEK.upper().strip()
         # Otomatik uzantı düzeltme
         if not any(x in s for x in ['.', '=', '-']):
             s += ".IS"
         
-        telegrama_yaz(f"🔍 **{s}** İnceleniyor (Kamuflaj Modu)...")
-        veri = veri_analiz_et(s)
+        telegrama_yaz(f"🔍 **{s}** İnceleniyor (Israrcı Mod)...")
         
-        if veri:
+        df = veri_cek(s)
+        if df is not None:
+            veri = teknik_analiz(s, df)
             prompt = f"Finansal analiz: {veri['sembol']}, Fiyat: {veri['fiyat']}, RSI: {veri['rsi']}, Haftalık: %{veri['haftalik']}. Al/Sat/Bekle?"
-            ai_cevap = model.generate_content(prompt).text
+            try:
+                ai_cevap = model.generate_content(prompt).text
+            except:
+                ai_cevap = "Yorum alınamadı."
             
             mesaj = f"📊 **{veri['sembol']} ÖZEL RAPOR**\n"
             mesaj += f"💰 Fiyat: {veri['fiyat']}\n"
@@ -137,7 +144,7 @@ def raporla():
             mesaj += f"💡 _{ai_cevap}_"
             telegrama_yaz(mesaj)
         else:
-            telegrama_yaz(f"⚠️ `{s}` verisi çekilemedi. Sembolü kontrol et (Örn: GMSTR.IS)")
+            telegrama_yaz(f"⚠️ `{s}` verisi 3 denemeye rağmen çekilemedi. Yahoo Finance çok yoğun.")
         return
 
     # --- GENEL RAPOR ---
@@ -149,20 +156,20 @@ def raporla():
     for kategori, semboller in SABIT_LISTE.items():
         mesaj += f"\n*{kategori}*\n"
         for sembol in semboller:
-            # Her istek arasına 2 saniye bekleme koy (Robot olmadığımızı kanıtlamak için)
-            time.sleep(2) 
+            df = veri_cek(sembol)
             
-            veri = veri_analiz_et(sembol)
-            if veri:
-                basarili_sayisi += 1
-                ikon = "🚀" if "🔥" in veri['sinyal'] or "🟢" in veri['sinyal'] else "▪️"
-                mesaj += f"{ikon} `{sembol}`: {veri['fiyat']} | {veri['sinyal']}\n"
-                ham_veri += f"{sembol}: Fiyat={veri['fiyat']}, Sinyal={veri['sinyal']}, RSI={veri['rsi']}\n"
+            if df is not None:
+                veri = teknik_analiz(sembol, df)
+                if veri:
+                    basarili_sayisi += 1
+                    ikon = "🚀" if "🔥" in veri['sinyal'] or "🟢" in veri['sinyal'] else "▪️"
+                    mesaj += f"{ikon} `{sembol}`: {veri['fiyat']} | {veri['sinyal']}\n"
+                    ham_veri += f"{sembol}: Fiyat={veri['fiyat']}, Sinyal={veri['sinyal']}, RSI={veri['rsi']}\n"
             else:
-                mesaj += f"❌ `{sembol}`: Erişim Engeli\n"
+                mesaj += f"❌ `{sembol}`: Erişim Yok\n"
 
     if basarili_sayisi == 0:
-        telegrama_yaz("⚠️ TÜM VERİLER ENGELLENDİ. Yahoo Finance IP bloklaması uyguluyor. 1 saat sonra tekrar deneyecek.")
+        telegrama_yaz("⚠️ Yahoo Finance tüm bağlantıları reddetti. 1 saat sonra tekrar deneyecek.")
         return
 
     # Gemini Yorumu
