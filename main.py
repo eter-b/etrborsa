@@ -56,7 +56,7 @@ def veri_cek_hayalet_mod(sembol):
     ua = UserAgent()
     
     # 3 Kez Dene
-    for i in range(3):
+    f xor i in range(3):
         try:
             session = requests.Session()
             header = {
